@@ -59,11 +59,23 @@ final class RunnerViewModel {
     var canStop: Bool { status.isActive && status != .stopping }
     var canOpenDevTools: Bool { status == .running || status == .reloading || status == .restarting }
 
+    /// SF Symbol for the menu bar icon; reflects the run state at a glance.
+    var menuBarSymbol: String {
+        if isBooting { return "hourglass" }
+        switch status {
+        case .idle: return "play.circle"
+        case .launching, .stopping: return "hourglass"
+        case .running: return "bolt.circle.fill"
+        case .reloading, .restarting: return "bolt.circle"
+        }
+    }
+
     private var flutter: String { FlutterSdk.command(for: projectURL) }
 
     // MARK: - Project & devices
 
     func chooseProject() {
+        NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false

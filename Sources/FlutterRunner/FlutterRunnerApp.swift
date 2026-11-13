@@ -1,45 +1,53 @@
 import AppKit
 import SwiftUI
 
+/// Lives in the menu bar (no Dock icon). The log window opens on demand.
 @main
 struct FlutterRunnerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var viewModel = RunnerViewModel()
 
     var body: some Scene {
+        MenuBarExtra {
+            MenuBarPanel(viewModel: appDelegate.viewModel)
+        } label: {
+            Image(systemName: appDelegate.viewModel.menuBarSymbol)
+        }
+        .menuBarExtraStyle(.window)
+
         Window("Flutter Runner", id: "main") {
-            ContentView(viewModel: viewModel)
-                .onAppear {
-                    appDelegate.viewModel = viewModel
-                    GlobalHotKeys.shared.onAction = { action in
-                        switch action {
-                        case .run: viewModel.runOrBoot()
-                        case .hotReload: viewModel.hotReload()
-                        case .hotRestart: viewModel.hotRestart()
-                        case .stop: viewModel.stop()
-                        }
-                    }
-                    GlobalHotKeys.shared.install()
-                }
+            ContentView(viewModel: appDelegate.viewModel)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 760, height: 460)
+        .defaultLaunchBehavior(.suppressed)
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    weak var viewModel: RunnerViewModel?
+    let viewModel = RunnerViewModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Needed when started with `swift run` (no app bundle).
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        // Info.plist sets LSUIElement; this covers `swift run` (no app bundle).
+        NSApp.setActivationPolicy(.accessory)
+
+        let viewModel = viewModel
+        GlobalHotKeys.shared.onAction = { action in
+            switch action {
+            case .run: viewModel.runOrBoot()
+            case .hotReload: viewModel.hotReload()
+            case .hotRestart: viewModel.hotRestart()
+            case .stop: viewModel.stop()
+            }
+        }
+        GlobalHotKeys.shared.install()
+        Task { await viewModel.refreshDevices() }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { viewModel?.shutdown() }
+        viewModel.shutdown()
     }
 }
 

@@ -18,7 +18,6 @@ struct ContentView: View {
         }
         .frame(minWidth: 560, minHeight: viewModel.showLogs ? 320 : 0)
         .background(WindowAccessor(alwaysOnTop: viewModel.alwaysOnTop))
-        .task { await viewModel.refreshDevices() }
     }
 }
 
@@ -59,7 +58,7 @@ private struct TargetBar: View {
     }
 }
 
-private struct DevicePicker: View {
+struct DevicePicker: View {
     @Bindable var viewModel: RunnerViewModel
 
     private var ready: [Device] { viewModel.devices.filter(\.isReady) }
@@ -147,7 +146,7 @@ private struct ControlBar: View {
     }
 }
 
-private struct StatusLabel: View {
+struct StatusLabel: View {
     let viewModel: RunnerViewModel
 
     private var color: Color {

@@ -17,6 +17,10 @@ Geliştirirken `swift run` ya da `open Package.swift` (Xcode) yeterli.
 
 ## Kullanım
 
+Uygulama **menü çubuğunda** yaşar (saatin yanındaki ▶︎ ikonu), Dock'ta
+görünmez. İkona tıklayınca butonlar açılır. Tam loglar için panelde
+**Logları aç**. İkon durumu gösterir: ▶︎ hazır, ⏳ başlıyor, ⚡ çalışıyor.
+
 1. **Proje seç**: `pubspec.yaml` olan klasörü seç (hatırlanır).
 2. **Cihaz seç**: açık cihazlar, kapalı iOS simülatörleri ve Android
    emülatörleri listelenir. Kapalı bir cihaz seçilirse **Aç ve Çalıştır**
@@ -34,4 +38,6 @@ FVM kullanan projelerde `.fvmrc` içindeki sürüm kullanılır.
 | Hot Restart | ⇧⌘R | ⌃⌥⇧R |
 | Stop | ⌘. | ⌃⌥. |
 
-📌 tuşu pencereyi hep üstte tutar.
+Log penceresindeki 📌 tuşu pencereyi hep üstte tutar.
+
+Giriş yapınca otomatik açılsın: Sistem Ayarları → Genel → Giriş Öğeleri → `+` → FlutterRunner.
