@@ -3,10 +3,12 @@ import SwiftUI
 /// The panel that drops down from the menu bar icon.
 struct MenuBarPanel: View {
     @Bindable var viewModel: RunnerViewModel
+    let updater: Updater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            UpdateBanner(updater: updater, isBusy: viewModel.status.isActive)
             header
             DevicePicker(viewModel: viewModel)
                 .labelsHidden()
@@ -103,7 +105,20 @@ struct MenuBarPanel: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button("Çık") { NSApp.terminate(nil) }
+            Menu {
+                Text("Sürüm \(updater.currentVersion)")
+                Button("Güncellemeleri denetle") {
+                    Task { await updater.check(userInitiated: true) }
+                }
+                .disabled(!updater.canUpdate)
+                Divider()
+                Button("Çık") { NSApp.terminate(nil) }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
@@ -128,6 +143,54 @@ struct RunStopButton: View {
             }
             .tint(.green)
             .disabled(viewModel.projectURL == nil || viewModel.selectedDevice == nil || viewModel.isBooting)
+        }
+    }
+}
+
+/// Shown at the top of the panel when there is something to say about updates.
+private struct UpdateBanner: View {
+    let updater: Updater
+    let isBusy: Bool
+
+    var body: some View {
+        switch updater.state {
+        case let .available(version, notes):
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Label("Yeni sürüm: \(version)", systemImage: "arrow.down.circle.fill")
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    Button("Güncelle") { Task { await updater.install() } }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(isBusy)
+                }
+                if isBusy {
+                    Text("Güncellemek için önce uygulamayı durdur.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if !notes.isEmpty {
+                    Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                }
+            }
+            .padding(10)
+            .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        case .installing:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Güncelleniyor, uygulama yeniden açılacak…").font(.callout)
+            }
+        case .checking:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Güncellemeler denetleniyor…").font(.caption).foregroundStyle(.secondary)
+            }
+        case .upToDate:
+            Text("Flutter Runner güncel (\(updater.currentVersion)).")
+                .font(.caption).foregroundStyle(.secondary)
+        case let .failed(message):
+            Text("Güncelleme: \(message)").font(.caption).foregroundStyle(.red)
+        case .idle:
+            EmptyView()
         }
     }
 }

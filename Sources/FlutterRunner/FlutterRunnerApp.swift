@@ -6,11 +6,19 @@ import SwiftUI
 struct FlutterRunnerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    private var menuBarSymbol: String {
+        let viewModel = appDelegate.viewModel
+        if !viewModel.status.isActive, !viewModel.isBooting, appDelegate.updater.availableVersion != nil {
+            return "arrow.down.circle"
+        }
+        return viewModel.menuBarSymbol
+    }
+
     var body: some Scene {
         MenuBarExtra {
-            MenuBarPanel(viewModel: appDelegate.viewModel)
+            MenuBarPanel(viewModel: appDelegate.viewModel, updater: appDelegate.updater)
         } label: {
-            Image(systemName: appDelegate.viewModel.menuBarSymbol)
+            Image(systemName: menuBarSymbol)
         }
         .menuBarExtraStyle(.window)
 
@@ -26,6 +34,7 @@ struct FlutterRunnerApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let viewModel = RunnerViewModel()
+    let updater = Updater()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Info.plist sets LSUIElement; this covers `swift run` (no app bundle).
@@ -42,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         GlobalHotKeys.shared.install()
         Task { await viewModel.refreshDevices() }
+        if updater.canUpdate { updater.startPeriodicChecks() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

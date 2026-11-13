@@ -9,11 +9,23 @@ başlatır ve komutları JSON olarak gönderir.
 
 ## Kurulum
 
+Terminale yapıştır:
+
 ```bash
-./scripts/build_app.sh --install   # /Applications/FlutterRunner.app
+curl -fsSL https://raw.githubusercontent.com/HusrevKorpe/flutter_runner/main/scripts/install.sh | bash
 ```
 
-Geliştirirken `swift run` ya da `open Package.swift` (Xcode) yeterli.
+Sonraki güncellemeler uygulamanın içinden gelir: yeni sürüm çıkınca menü
+çubuğu ikonu ⬇︎ olur, panelde **Güncelle**'ye basmak yeterli. Elle denetlemek
+için panelde `…` → **Güncellemeleri denetle**.
+
+## Geliştirme
+
+```bash
+swift run                              # ya da: open Package.swift (Xcode)
+./scripts/build_app.sh --install       # yerel derlemeyi /Applications'a kur
+./scripts/release.sh 0.2.0 "Notlar"    # yeni sürüm yayınla (herkese gider)
+```
 
 ## Kullanım
 
