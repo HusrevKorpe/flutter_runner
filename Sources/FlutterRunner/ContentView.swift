@@ -2,90 +2,80 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var viewModel: RunnerViewModel
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                TargetBar(viewModel: viewModel)
-                ControlBar(viewModel: viewModel)
-            }
-            .padding(12)
-
+        VStack(spacing: 10) {
+            TargetBar(viewModel: viewModel, theme: settings.theme)
+            ControlBar(viewModel: viewModel, theme: settings.theme)
             if viewModel.showLogs {
-                Divider()
                 LogView(viewModel: viewModel)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .frame(minWidth: 560, minHeight: viewModel.showLogs ? 320 : 0)
+        .padding(12)
+        .frame(minWidth: 640, minHeight: viewModel.showLogs ? 380 : 0, alignment: .top)
         .background(WindowAccessor(alwaysOnTop: viewModel.alwaysOnTop))
+        .animation(.easeInOut(duration: 0.25), value: viewModel.showLogs)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.status)
     }
 }
 
 /// Project, device and build mode.
 private struct TargetBar: View {
     @Bindable var viewModel: RunnerViewModel
+    let theme: AppTheme
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
             Button(action: viewModel.chooseProject) {
-                Label(viewModel.projectName, systemImage: "folder")
-                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    AppGlyph(theme: theme, size: 26)
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 4) {
+                            Text(viewModel.projectName)
+                                .font(.system(size: 13.5, weight: .semibold))
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Text(viewModel.projectURL.map { abbreviate($0.path) } ?? "Flutter proje klasörü seç")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .help(viewModel.projectURL?.path ?? "Flutter proje klasörü seç")
             .disabled(viewModel.status.isActive)
+            .frame(maxWidth: 260, alignment: .leading)
 
-            DevicePicker(viewModel: viewModel)
+            Spacer(minLength: 8)
 
-            Button {
-                Task { await viewModel.refreshDevices() }
-            } label: {
-                if viewModel.isLoadingDevices {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
+            HStack(spacing: 0) {
+                DeviceMenu(viewModel: viewModel) {
+                    PanelRow(symbol: viewModel.selectedDevice?.symbol ?? "iphone",
+                             title: viewModel.selectedDevice?.name
+                                ?? (viewModel.isLoadingDevices ? "Cihazlar aranıyor…" : "Cihaz seç"),
+                             detail: viewModel.selectedDevice?.platform) {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-            }
-            .help("Cihazları yenile")
-            .disabled(viewModel.isLoadingDevices)
-
-            Picker("", selection: $viewModel.mode) {
-                ForEach(BuildMode.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            .disabled(viewModel.status.isActive)
-        }
-    }
-}
-
-struct DevicePicker: View {
-    @Bindable var viewModel: RunnerViewModel
-
-    private var ready: [Device] { viewModel.devices.filter(\.isReady) }
-    private var simulators: [Device] { viewModel.devices.filter { $0.kind == .iosSimulator } }
-    private var emulators: [Device] { viewModel.devices.filter { $0.kind == .androidEmulator } }
-
-    var body: some View {
-        Picker("", selection: $viewModel.selectedDeviceId) {
-            if viewModel.devices.isEmpty {
-                Text(viewModel.isLoadingDevices ? "Cihazlar aranıyor…" : "Cihaz yok").tag(String?.none)
-            }
-            section("Açık cihazlar", ready)
-            section("iOS simülatörler (kapalı)", simulators)
-            section("Android emülatörler", emulators)
-        }
-        .frame(minWidth: 200)
-        .disabled(viewModel.status.isActive || viewModel.isBooting)
-    }
-
-    @ViewBuilder
-    private func section(_ title: String, _ devices: [Device]) -> some View {
-        if !devices.isEmpty {
-            Section(title) {
-                ForEach(devices) { device in
-                    Text("\(device.name)  —  \(device.detail)").tag(Optional(device.id))
+                .frame(maxWidth: 260)
+                IconButton(symbol: "arrow.clockwise", help: "Cihazları yenile",
+                           isLoading: viewModel.isLoadingDevices) {
+                    Task { await viewModel.refreshDevices() }
                 }
+                .disabled(viewModel.isLoadingDevices)
             }
+
+            ModePicker(viewModel: viewModel, theme: theme)
         }
     }
 }
@@ -93,86 +83,77 @@ struct DevicePicker: View {
 /// Run, hot reload, restart, stop, DevTools and window toggles.
 private struct ControlBar: View {
     @Bindable var viewModel: RunnerViewModel
+    let theme: AppTheme
 
     var body: some View {
         HStack(spacing: 8) {
-            if viewModel.status.isActive {
-                Button(action: viewModel.stop) {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                .tint(.red)
-                .keyboardShortcut(".", modifiers: .command)
-                .disabled(!viewModel.canStop)
-            } else {
-                Button(action: viewModel.runOrBoot) {
-                    Label(viewModel.selectedDevice?.isReady == false ? "Aç ve Çalıştır" : "Run",
-                          systemImage: "play.fill")
-                }
-                .tint(.green)
-                .keyboardShortcut("r", modifiers: .command)
-                .disabled(viewModel.projectURL == nil || viewModel.selectedDevice == nil || viewModel.isBooting)
-            }
+            RunStopButton(viewModel: viewModel, theme: theme, height: 28)
+                .frame(width: 120)
+                .keyboardShortcut(viewModel.status.isActive ? "." : "r", modifiers: .command)
 
             Button(action: viewModel.hotReload) {
                 Label("Hot Reload", systemImage: "bolt.fill")
             }
-            .tint(.orange)
+            .buttonStyle(ActionButtonStyle(kind: .plain(theme.reload), height: 28))
+            .frame(width: 104)
             .keyboardShortcut("s", modifiers: .command)
             .disabled(!viewModel.canReload)
 
             Button(action: viewModel.hotRestart) {
                 Label("Restart", systemImage: "arrow.counterclockwise")
             }
+            .buttonStyle(ActionButtonStyle(kind: .plain(theme.accent), height: 28))
+            .frame(width: 88)
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(!viewModel.canReload)
 
             Button(action: viewModel.openDevTools) {
                 Label("DevTools", systemImage: "ladybug")
             }
+            .buttonStyle(ActionButtonStyle(kind: .plain(.secondary), height: 28))
+            .frame(width: 92)
             .disabled(!viewModel.canOpenDevTools)
 
             Spacer(minLength: 8)
-            StatusLabel(viewModel: viewModel)
 
-            Toggle(isOn: $viewModel.alwaysOnTop) { Image(systemName: "pin") }
-                .toggleStyle(.button)
-                .help("Pencere hep üstte")
-            Toggle(isOn: $viewModel.showLogs) { Image(systemName: "text.alignleft") }
-                .toggleStyle(.button)
-                .help("Logları göster")
+            if let result = viewModel.lastResult {
+                Text(result)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .transition(.opacity)
+            }
+            StatusPill(viewModel: viewModel, theme: theme)
+
+            HStack(spacing: 0) {
+                ToggleIcon(symbol: "pin.fill", isOn: $viewModel.alwaysOnTop, theme: theme, help: "Pencere hep üstte")
+                ToggleIcon(symbol: "text.alignleft", isOn: $viewModel.showLogs, theme: theme, help: "Logları göster")
+                SettingsButton()
+            }
+            .padding(2)
+            .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
     }
 }
 
-struct StatusLabel: View {
-    let viewModel: RunnerViewModel
-
-    private var color: Color {
-        switch viewModel.status {
-        case .idle: .secondary
-        case .running: .green
-        case .launching, .reloading, .restarting: .orange
-        case .stopping: .red
-        }
-    }
+private struct ToggleIcon: View {
+    let symbol: String
+    @Binding var isOn: Bool
+    let theme: AppTheme
+    let help: String
 
     var body: some View {
-        HStack(spacing: 6) {
-            if viewModel.isBooting || [.launching, .reloading, .restarting, .stopping].contains(viewModel.status) {
-                ProgressView().controlSize(.small)
-            } else {
-                Circle().fill(color).frame(width: 8, height: 8)
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                Text(viewModel.isBooting ? "Cihaz açılıyor…" : viewModel.status.title)
-                    .font(.callout.weight(.medium))
-                if let result = viewModel.lastResult {
-                    Text(result).font(.caption).foregroundStyle(.secondary)
-                }
-            }
+        Button { isOn.toggle() } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 11.5, weight: .semibold))
+                .frame(width: 24, height: 22)
+                .foregroundStyle(isOn ? theme.accent : .secondary)
+                .background(isOn ? theme.accent.opacity(0.14) : .clear,
+                            in: RoundedRectangle(cornerRadius: 5))
+                .contentShape(Rectangle())
         }
-        .fixedSize()
+        .buttonStyle(.plain)
+        .help(help)
     }
 }

@@ -52,4 +52,13 @@ FVM kullanan projelerde `.fvmrc` içindeki sürüm kullanılır.
 
 Log penceresindeki 📌 tuşu pencereyi hep üstte tutar.
 
-Giriş yapınca otomatik açılsın: Sistem Ayarları → Genel → Giriş Öğeleri → `+` → FlutterRunner.
+## Ayarlar
+
+Paneldeki ⚙︎ (ya da ⌘,) ile açılır:
+
+- **Görünüm**: 5 renk teması (Flutter, Orman, Gün Batımı, Üzüm, Grafit) ve
+  Sistem / Açık / Koyu modu.
+- **Davranış**: girişte otomatik açılma, paneldeki log satırı sayısı,
+  kısayol ipuçları, log konsolu yazı boyutu.
+
+Uygulama ikonu `swift scripts/make_icon.swift` ile yeniden üretilir.

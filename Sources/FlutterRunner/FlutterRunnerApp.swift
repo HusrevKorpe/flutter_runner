@@ -17,6 +17,8 @@ struct FlutterRunnerApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuBarPanel(viewModel: appDelegate.viewModel, updater: appDelegate.updater)
+                .environment(appDelegate.settings)
+                .tint(appDelegate.settings.theme.accent)
         } label: {
             Image(systemName: menuBarSymbol)
         }
@@ -24,10 +26,17 @@ struct FlutterRunnerApp: App {
 
         Window("Flutter Runner", id: "main") {
             ContentView(viewModel: appDelegate.viewModel)
+                .environment(appDelegate.settings)
+                .tint(appDelegate.settings.theme.accent)
         }
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 760, height: 460)
+        .windowToolbarStyle(.unifiedCompact)
+        .defaultSize(width: 820, height: 560)
         .defaultLaunchBehavior(.suppressed)
+
+        Settings {
+            SettingsView(settings: appDelegate.settings, updater: appDelegate.updater)
+        }
     }
 }
 
@@ -35,10 +44,12 @@ struct FlutterRunnerApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let viewModel = RunnerViewModel()
     let updater = Updater()
+    let settings = AppSettings()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Info.plist sets LSUIElement; this covers `swift run` (no app bundle).
         NSApp.setActivationPolicy(.accessory)
+        settings.applyAppearance()
 
         let viewModel = viewModel
         GlobalHotKeys.shared.onAction = { action in

@@ -46,6 +46,30 @@ struct Device: Identifiable, Hashable {
     let kind: Kind
 
     var isReady: Bool { kind == .connected }
+
+    /// Short platform label, e.g. "iOS", "Android", "iOS 18.2".
+    var platform: String {
+        switch kind {
+        case .iosSimulator: return detail
+        case .androidEmulator: return "Android"
+        case .connected:
+            let target = detail.split(separator: "·").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+            if target.hasPrefix("ios") { return "iOS" }
+            if target.hasPrefix("android") { return "Android" }
+            if target.hasPrefix("darwin") { return "macOS" }
+            if target.hasPrefix("web") { return "Web" }
+            return target
+        }
+    }
+
+    var symbol: String {
+        switch platform {
+        case "Android": "candybarphone"
+        case "macOS": "macbook"
+        case "Web": "globe"
+        default: "iphone"
+        }
+    }
 }
 
 struct LogLine: Identifiable {

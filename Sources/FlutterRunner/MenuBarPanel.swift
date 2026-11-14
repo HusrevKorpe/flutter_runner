@@ -4,107 +4,124 @@ import SwiftUI
 struct MenuBarPanel: View {
     @Bindable var viewModel: RunnerViewModel
     let updater: Updater
+    @Environment(AppSettings.self) private var settings
     @Environment(\.openWindow) private var openWindow
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            UpdateBanner(updater: updater, isBusy: viewModel.status.isActive)
-            header
-            DevicePicker(viewModel: viewModel)
-                .labelsHidden()
-            Picker("", selection: $viewModel.mode) {
-                ForEach(BuildMode.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .disabled(viewModel.status.isActive)
+    private var theme: AppTheme { settings.theme }
 
-            controls
-            StatusLabel(viewModel: viewModel)
-            recentLogs
-            Divider()
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+
+            UpdateBanner(updater: updater, isBusy: viewModel.status.isActive, theme: theme)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+
+            SectionDivider()
+
+            VStack(spacing: 2) {
+                ProjectRow(viewModel: viewModel)
+                DeviceRow(viewModel: viewModel)
+                HStack {
+                    Text("Mod")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    ModePicker(viewModel: viewModel, theme: theme)
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 30)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 6)
+
+            SectionDivider()
+
+            VStack(spacing: 6) {
+                RunStopButton(viewModel: viewModel, theme: theme, height: 28)
+                HStack(spacing: 6) {
+                    Button(action: viewModel.hotReload) {
+                        Label("Reload", systemImage: "bolt.fill")
+                    }
+                    .buttonStyle(ActionButtonStyle(kind: .plain(theme.reload)))
+                    .disabled(!viewModel.canReload)
+                    .help("Hot Reload  ⌃⌥R")
+
+                    Button(action: viewModel.hotRestart) {
+                        Label("Restart", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(ActionButtonStyle(kind: .plain(theme.accent)))
+                    .disabled(!viewModel.canReload)
+                    .help("Hot Restart  ⌃⌥⇧R")
+
+                    Button(action: viewModel.openDevTools) {
+                        Label("DevTools", systemImage: "ladybug")
+                    }
+                    .buttonStyle(ActionButtonStyle(kind: .plain(.secondary)))
+                    .disabled(!viewModel.canOpenDevTools)
+                }
+                if let result = viewModel.lastResult {
+                    ResultLine(text: result)
+                }
+                recentLogs
+            }
+            .padding(12)
+
+            SectionDivider()
             footer
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
         }
-        .padding(14)
-        .frame(width: 340)
+        .frame(width: 300)
+        .animation(.easeInOut(duration: 0.15), value: viewModel.status)
+        .animation(.easeInOut(duration: 0.15), value: viewModel.lastResult)
     }
 
     private var header: some View {
-        HStack {
-            Button(action: viewModel.chooseProject) {
-                Label(viewModel.projectName, systemImage: "folder")
-                    .lineLimit(1)
-            }
-            .help(viewModel.projectURL?.path ?? "Flutter proje klasörü seç")
-            .disabled(viewModel.status.isActive)
+        HStack(spacing: 8) {
+            AppGlyph(theme: theme, size: 20)
+            Text("Flutter Runner").font(.system(size: 13, weight: .semibold))
             Spacer()
-            Button {
-                Task { await viewModel.refreshDevices() }
-            } label: {
-                if viewModel.isLoadingDevices {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
-            }
-            .help("Cihazları yenile")
-            .disabled(viewModel.isLoadingDevices)
+            StatusPill(viewModel: viewModel, theme: theme)
         }
-    }
-
-    private var controls: some View {
-        Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-            GridRow {
-                RunStopButton(viewModel: viewModel)
-                Button(action: viewModel.hotReload) {
-                    Label("Hot Reload", systemImage: "bolt.fill").frame(maxWidth: .infinity)
-                }
-                .tint(.orange)
-                .disabled(!viewModel.canReload)
-            }
-            GridRow {
-                Button(action: viewModel.hotRestart) {
-                    Label("Restart", systemImage: "arrow.counterclockwise").frame(maxWidth: .infinity)
-                }
-                .disabled(!viewModel.canReload)
-                Button(action: viewModel.openDevTools) {
-                    Label("DevTools", systemImage: "ladybug").frame(maxWidth: .infinity)
-                }
-                .disabled(!viewModel.canOpenDevTools)
-            }
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
     }
 
     @ViewBuilder
     private var recentLogs: some View {
-        let lines = viewModel.logs.suffix(5)
+        let lines = settings.panelLogLines > 0 ? Array(viewModel.logs.suffix(settings.panelLogLines)) : []
         if !lines.isEmpty {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 ForEach(lines) { line in
                     Text(line.text)
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundStyle(line.level == .error ? Color.red : Color.secondary)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(line.level == .error ? Color.stop : Color.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .onTapGesture(perform: openMainWindow)
+            .help("Tüm loglar için tıkla")
+            .padding(.top, 2)
         }
     }
 
     private var footer: some View {
-        HStack {
-            Button("Logları aç") {
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
+        HStack(spacing: 0) {
+            FooterButton(title: "Loglar", action: openMainWindow)
+            Spacer()
+            if settings.showShortcutHints {
+                Text("⌃⌥R  reload")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.tertiary)
+                Spacer()
             }
-            Spacer()
-            Text("⌃⌥R reload · ⌃⌥⇧R restart")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            Spacer()
+            SettingsButton()
             Menu {
                 Text("Sürüm \(updater.currentVersion)")
                 Button("Güncellemeleri denetle") {
@@ -112,85 +129,348 @@ struct MenuBarPanel: View {
                 }
                 .disabled(!updater.canUpdate)
                 Divider()
-                Button("Çık") { NSApp.terminate(nil) }
+                Button("Flutter Runner'dan çık") { NSApp.terminate(nil) }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 22)
+                    .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
+            .help("Daha fazla")
         }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
+    }
+
+    private func openMainWindow() {
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+private struct SectionDivider: View {
+    var body: some View {
+        Rectangle().fill(.primary.opacity(0.08)).frame(height: 0.5)
+    }
+}
+
+/// A hoverable list row: icon, title, secondary detail and trailing accessory.
+struct PanelRow<Trailing: View>: View {
+    let symbol: String
+    let title: String
+    let detail: String?
+    @ViewBuilder var trailing: Trailing
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(title)
+                .font(.system(size: 12.5, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+            Spacer(minLength: 6)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            trailing
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 30)
+        .background(.primary.opacity(isHovering ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+    }
+}
+
+private struct ProjectRow: View {
+    let viewModel: RunnerViewModel
+
+    var body: some View {
+        Button(action: viewModel.chooseProject) {
+            PanelRow(symbol: "folder",
+                     title: viewModel.projectName,
+                     detail: viewModel.projectURL.map { abbreviate($0.deletingLastPathComponent().path) }) {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+        .help(viewModel.projectURL?.path ?? "Flutter proje klasörü seç")
+        .disabled(viewModel.status.isActive)
+    }
+}
+
+private struct DeviceRow: View {
+    let viewModel: RunnerViewModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            DeviceMenu(viewModel: viewModel) {
+                PanelRow(symbol: viewModel.selectedDevice?.symbol ?? "iphone",
+                         title: viewModel.selectedDevice?.name
+                            ?? (viewModel.isLoadingDevices ? "Cihazlar aranıyor…" : "Cihaz seç"),
+                         detail: viewModel.selectedDevice?.platform) {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            IconButton(symbol: "arrow.clockwise", help: "Cihazları yenile",
+                       isLoading: viewModel.isLoadingDevices) {
+                Task { await viewModel.refreshDevices() }
+            }
+            .disabled(viewModel.isLoadingDevices)
+            .padding(.leading, 2)
+        }
+    }
+}
+
+/// Device chooser as a plain menu so the label can be fully custom.
+struct DeviceMenu<Label: View>: View {
+    let viewModel: RunnerViewModel
+    @ViewBuilder var label: Label
+
+    private var ready: [Device] { viewModel.devices.filter(\.isReady) }
+    private var simulators: [Device] { viewModel.devices.filter { $0.kind == .iosSimulator } }
+    private var emulators: [Device] { viewModel.devices.filter { $0.kind == .androidEmulator } }
+
+    var body: some View {
+        Menu {
+            if viewModel.devices.isEmpty {
+                Text(viewModel.isLoadingDevices ? "Cihazlar aranıyor…" : "Cihaz bulunamadı")
+            }
+            section("Açık cihazlar", ready)
+            section("iOS simülatörler", simulators)
+            section("Android emülatörler", emulators)
+        } label: {
+            label
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .disabled(viewModel.status.isActive || viewModel.isBooting)
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, _ devices: [Device]) -> some View {
+        if !devices.isEmpty {
+            Section(title) {
+                ForEach(devices) { device in
+                    Toggle(isOn: Binding(
+                        get: { viewModel.selectedDeviceId == device.id },
+                        set: { if $0 { viewModel.selectedDeviceId = device.id } }
+                    )) {
+                        Text("\(device.name)  ·  \(device.platform)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Small three-way segmented control for the build mode.
+struct ModePicker: View {
+    @Bindable var viewModel: RunnerViewModel
+    let theme: AppTheme
+
+    var body: some View {
+        HStack(spacing: 1) {
+            ForEach(BuildMode.allCases) { mode in
+                let isSelected = viewModel.mode == mode
+                Button { viewModel.mode = mode } label: {
+                    Text(mode.title)
+                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .padding(.horizontal, 8)
+                        .frame(height: 20)
+                        .background {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(.background)
+                                    .shadow(color: .black.opacity(0.12), radius: 1, y: 0.5)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .disabled(viewModel.status.isActive)
+        .opacity(viewModel.status.isActive ? 0.6 : 1)
+        .animation(.easeOut(duration: 0.12), value: viewModel.mode)
+    }
+}
+
+func abbreviate(_ path: String) -> String {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+}
+
+private struct ResultLine: View {
+    let text: String
+
+    private var isFailure: Bool { text.contains("başarısız") || text.contains("Hata") }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: isFailure ? "exclamationmark.triangle.fill" : "checkmark")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(isFailure ? Color.stop : Color.live)
+            Text(text).foregroundStyle(.secondary)
+            Spacer()
+        }
+        .font(.system(size: 11))
+        .padding(.horizontal, 2)
+        .transition(.opacity)
     }
 }
 
 struct RunStopButton: View {
     let viewModel: RunnerViewModel
+    let theme: AppTheme
+    var height: CGFloat = 26
 
     var body: some View {
         if viewModel.status.isActive {
             Button(action: viewModel.stop) {
-                Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity)
+                Label("Durdur", systemImage: "stop.fill")
             }
-            .tint(.red)
+            .buttonStyle(ActionButtonStyle(kind: .plain(.stop), height: height))
             .disabled(!viewModel.canStop)
         } else {
             Button(action: viewModel.runOrBoot) {
-                Label(viewModel.selectedDevice?.isReady == false ? "Aç ve Çalıştır" : "Run",
+                Label(viewModel.selectedDevice?.isReady == false ? "Aç ve Çalıştır" : "Çalıştır",
                       systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
             }
-            .tint(.green)
+            .buttonStyle(ActionButtonStyle(kind: .primary(theme.accent), height: height))
             .disabled(viewModel.projectURL == nil || viewModel.selectedDevice == nil || viewModel.isBooting)
         }
     }
 }
 
-/// Shown at the top of the panel when there is something to say about updates.
+struct IconButton: View {
+    let symbol: String
+    let help: String
+    var isLoading = false
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if isLoading {
+                    ProgressView().controlSize(.small).scaleEffect(0.6)
+                } else {
+                    Image(systemName: symbol).font(.system(size: 11, weight: .medium))
+                }
+            }
+            .frame(width: 24, height: 22)
+            .background(.primary.opacity(isHovering ? 0.08 : 0), in: RoundedRectangle(cornerRadius: 5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .onHover { isHovering = $0 }
+        .help(help)
+    }
+}
+
+private struct FooterButton: View {
+    let title: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11.5))
+                .padding(.horizontal, 6)
+                .frame(height: 22)
+                .background(.primary.opacity(isHovering ? 0.08 : 0), in: RoundedRectangle(cornerRadius: 5))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .onHover { isHovering = $0 }
+    }
+}
+
+/// Opens the Settings window and brings it to the front (we are an accessory app).
+struct SettingsButton: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        IconButton(symbol: "gearshape", help: "Ayarlar  ⌘,") {
+            NSApp.activate(ignoringOtherApps: true)
+            openSettings()
+        }
+    }
+}
+
+/// Only speaks up when there is something actionable about updates.
 private struct UpdateBanner: View {
     let updater: Updater
     let isBusy: Bool
+    let theme: AppTheme
 
     var body: some View {
         switch updater.state {
-        case let .available(version, notes):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Label("Yeni sürüm: \(version)", systemImage: "arrow.down.circle.fill")
-                        .font(.callout.weight(.semibold))
-                    Spacer()
-                    Button("Güncelle") { Task { await updater.install() } }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(isBusy)
+        case let .available(version, _):
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(theme.accent)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Sürüm \(version) hazır").font(.system(size: 12, weight: .medium))
+                    if isBusy {
+                        Text("Önce uygulamayı durdur").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    }
                 }
-                if isBusy {
-                    Text("Güncellemek için önce uygulamayı durdur.")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else if !notes.isEmpty {
-                    Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
-                }
+                Spacer()
+                Button("Güncelle") { Task { await updater.install() } }
+                    .buttonStyle(ActionButtonStyle(kind: .primary(theme.accent), height: 22))
+                    .fixedSize()
+                    .disabled(isBusy)
             }
-            .padding(10)
-            .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .padding(8)
+            .background(theme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         case .installing:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Güncelleniyor, uygulama yeniden açılacak…").font(.callout)
+            banner {
+                ProgressView().controlSize(.small).scaleEffect(0.7)
+                Text("Güncelleniyor…")
             }
-        case .checking:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Güncellemeler denetleniyor…").font(.caption).foregroundStyle(.secondary)
+        case let .failed(message):
+            banner {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.stop)
+                Text(message).lineLimit(2)
             }
         case .upToDate:
-            Text("Flutter Runner güncel (\(updater.currentVersion)).")
-                .font(.caption).foregroundStyle(.secondary)
-        case let .failed(message):
-            Text("Güncelleme: \(message)").font(.caption).foregroundStyle(.red)
-        case .idle:
+            banner {
+                Image(systemName: "checkmark").foregroundStyle(Color.live)
+                Text("Güncel sürümü kullanıyorsun")
+            }
+        case .idle, .checking:
             EmptyView()
         }
+    }
+
+    private func banner(@ViewBuilder _ content: () -> some View) -> some View {
+        HStack(spacing: 6) { content() }
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

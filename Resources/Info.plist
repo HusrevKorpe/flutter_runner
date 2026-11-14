@@ -8,6 +8,8 @@
 	<string>Flutter Runner</string>
 	<key>CFBundleExecutable</key>
 	<string>FlutterRunner</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.husrevkorpe.FlutterRunner</string>
 	<key>CFBundleInfoDictionaryVersion</key>

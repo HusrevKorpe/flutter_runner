@@ -56,7 +56,8 @@ final class Updater {
                 downloadURL = asset
                 state = .available(version: version, notes: release.notes)
             } else {
-                state = .upToDate
+                // Only confirm "up to date" when the user asked; stay quiet otherwise.
+                state = userInitiated ? .upToDate : .idle
             }
         } catch {
             // Background checks fail quietly (offline, rate limit); manual ones report.
